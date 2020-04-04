@@ -1,81 +1,96 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using NHSE.Core;
+using NHSE.Injection;
 
 namespace NHSE.WinForms
 {
-    public partial class PlayerItemEditor : Form
+    public partial class PlayerItemEditor<T> : Form where T : Item
     {
-        private readonly Player Player;
-        private readonly InventorySet[] Inventory;
-        private readonly string[] items;
+        private readonly IReadOnlyList<T> Items;
+        private readonly Action LoadItems;
+        private readonly int SysBotLength;
 
-        public PlayerItemEditor(Player player)
+        public PlayerItemEditor(IReadOnlyList<T> array, int width, int height, int sysbot = 0)
         {
             InitializeComponent();
+            Items = array;
 
-            Player = player;
-            Inventory = GetInventory(player);
-            items = GameInfo.Strings.itemlist.ToArray(); // simple copy, we're gonna mutate
+            var Editor = new ItemGridEditor(ItemEditor, Items) {Dock = DockStyle.Fill};
+            Editor.InitializeGrid(width, height);
+            PAN_Items.Controls.Add(Editor);
 
-            var set = new HashSet<string>();
-            for (int i = 0; i < items.Length; i++)
-            {
-                var item = items[i];
-                if (string.IsNullOrEmpty(item))
-                    items[i] = $"(Item #{i:000})";
-                else if (set.Contains(item))
-                    items[i] += $" (#{i:000})";
-                else
-                    set.Add(item);
-            }
-
-            ItemEditor.Initialize(items);
-            CreateTabs();
-        }
-
-        private void CreateTabs()
-        {
-            var i = items;
-            foreach (var p in Inventory)
-            {
-                var tab = new TabPage { Name = $"Tab_{p.Type}", Text = p.Type.ToString() };
-                var grid = new ItemGridEditor(ItemEditor, p.Items, i) { Dock = DockStyle.Fill };
-                grid.InitializeGrid(10, 4);
-                tab.Controls.Add(grid);
-                TC_Groups.TabPages.Add(tab);
-                TC_Groups.ShowToolTips = true;
-                tab.ToolTipText = p.Type.ToString();
-            }
-        }
-
-        private static InventorySet[] GetInventory(Player player)
-        {
-            var _21 = player.Personal.Pocket2.Concat(player.Personal.Pocket1).ToArray();
-            return new[]
-            {
-                new InventorySet(InventoryType.Pocket1, _21),
-                new InventorySet(InventoryType.Storage, player.Personal.Storage),
-            };
-        }
-
-        private void SetInventory(Player player)
-        {
-            var p2 = Inventory[0].Items.Take(20).ToArray();
-            var p1 = Inventory[0].Items.Skip(20).Take(20).ToArray();
-            player.Personal.Pocket2 = p2;
-            player.Personal.Pocket1 = p1;
-            player.Personal.Storage = Inventory[1].Items;
+            ItemEditor.Initialize(GameInfo.Strings.ItemDataSource);
+            Editor.LoadItems();
+            DialogResult = DialogResult.Cancel;
+            LoadItems = () => Editor.LoadItems();
+            B_Inject.Visible = (SysBotLength = sysbot) > 0;
         }
 
         private void B_Cancel_Click(object sender, EventArgs e) => Close();
 
         private void B_Save_Click(object sender, EventArgs e)
         {
-            SetInventory(Player);
+            DialogResult = DialogResult.OK;
             Close();
+        }
+
+        private void B_Dump_Click(object sender, EventArgs e)
+        {
+            using var sfd = new SaveFileDialog
+            {
+                Filter = "New Horizons Inventory (*.nhi)|*.nhi|All files (*.*)|*.*",
+                FileName = "items.nhi",
+            };
+            if (sfd.ShowDialog() != DialogResult.OK)
+                return;
+            var bytes = Items.SetArray(Items[0].ToBytesClass().Length);
+            File.WriteAllBytes(sfd.FileName, bytes);
+        }
+
+        private void B_Load_Click(object sender, EventArgs e)
+        {
+            using var sfd = new OpenFileDialog
+            {
+                Filter = "New Horizons Inventory (*.nhi)|*.nhi|All files (*.*)|*.*",
+                FileName = "items.nhi",
+            };
+            if (sfd.ShowDialog() != DialogResult.OK)
+                return;
+
+            var data = File.ReadAllBytes(sfd.FileName);
+            var import = data.GetArray<T>(Items[0].ToBytesClass().Length);
+            for (int i = 0; i < Items.Count && i < import.Length ; i++)
+                Items[i].CopyFrom(import[i]);
+
+            LoadItems();
+            System.Media.SystemSounds.Asterisk.Play();
+        }
+
+        private void B_Inject_Click(object sender, EventArgs e)
+        {
+            var exist = WinFormsUtil.FirstFormOfType<SysBotUI>();
+            if (exist != null)
+            {
+                exist.Show();
+                return;
+            }
+
+            byte[] Write() => Items.Take(SysBotLength).SelectMany(z => z.ToBytesClass()).ToArray();
+            void Read(byte[] data)
+            {
+                var items = Item.GetArray(data);
+                for (int i = 0; i < items.Length && i < Items.Count; i++)
+                    Items[i].CopyFrom(items[i]);
+                LoadItems();
+                System.Media.SystemSounds.Asterisk.Play();
+            }
+
+            var sysbot = new SysBotUI(Read, Write, InjectionType.Pouch);
+            sysbot.Show();
         }
     }
 }

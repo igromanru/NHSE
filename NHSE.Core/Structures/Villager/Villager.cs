@@ -1,8 +1,10 @@
-﻿using System.Text;
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
 
 namespace NHSE.Core
 {
-    public class Villager
+    public class Villager : IVillagerOrigin
     {
         public readonly byte[] Data;
         public Villager(byte[] data) => Data = data;
@@ -25,10 +27,49 @@ namespace NHSE.Core
             set => Data[2] = (byte)value;
         }
 
+        public uint TownID
+        {
+            get => BitConverter.ToUInt32(Data, 0x04);
+            set => BitConverter.GetBytes(value).CopyTo(Data, 0x04);
+        }
+
+        public string TownName
+        {
+            get => GetString(0x08, 10);
+            set => GetBytes(value, 10).CopyTo(Data, 0x08);
+        }
+        public byte[] GetTownIdentity() => Data.Slice(0x04, 4 + 20);
+
+        public uint PlayerID
+        {
+            get => BitConverter.ToUInt32(Data, 0x20);
+            set => BitConverter.GetBytes(value).CopyTo(Data, 0x20);
+        }
+
+        public string PlayerName
+        {
+            get => GetString(0x24, 10);
+            set => GetBytes(value, 10).CopyTo(Data, 0x24);
+        }
+
+        public byte[] GetPlayerIdentity() => Data.Slice(0x20, 4 + 20);
+
+        public string TownName2
+        {
+            get => GetString(0x5CC, 10);
+            set => GetBytes(value, 10).CopyTo(Data, 0x5CC);
+        }
+
         public string CatchPhrase
         {
             get => GetString(0x10014, 2 * 12);
             set => GetBytes(value, 2 * 12).CopyTo(Data, 0x10014);
+        }
+
+        public IReadOnlyList<VillagerItem> Furniture
+        {
+            get => VillagerItem.GetArray(Data.Slice(0x105EC, 16 * VillagerItem.SIZE));
+            set => VillagerItem.SetArray(value).CopyTo(Data, 0x105EC);
         }
 
         public override string ToString() => InternalName;

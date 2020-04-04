@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace NHSE.WinForms
@@ -55,5 +56,13 @@ namespace NHSE.WinForms
                 }
             }
         }
+
+        /// <summary>
+        /// Gets the selected value of the input <see cref="cb"/>. If no value is selected, will return 0.
+        /// </summary>
+        /// <param name="cb">ComboBox to retrieve value for.</param>
+        internal static int GetIndex(ListControl cb) => (int)(cb?.SelectedValue ?? 0);
+
+        public static T? FirstFormOfType<T>() where T : Form => (T?)Application.OpenForms.Cast<Form>().FirstOrDefault(form => form is T);
     }
 }

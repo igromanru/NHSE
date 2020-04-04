@@ -1,6 +1,8 @@
 ﻿using System;
+using System.IO;
 using System.Windows.Forms;
 using NHSE.Core;
+using NHSE.WinForms.Properties;
 
 namespace NHSE.WinForms
 {
@@ -41,6 +43,19 @@ namespace NHSE.WinForms
 
         private void Menu_Open(object sender, EventArgs e)
         {
+            if ((ModifierKeys & Keys.Control) != 0)
+            {
+                // Detect save file from SD cards?
+            }
+            else if ((ModifierKeys & Keys.Shift) != 0)
+            {
+                var path = Settings.Default.LastFilePath;
+                if (Directory.Exists(path))
+                {
+                    Open(path);
+                    return;
+                }
+            }
             using var fbd = new FolderBrowserDialog();
             if (fbd.ShowDialog() == DialogResult.OK)
                 Open(fbd.SelectedPath);
@@ -48,21 +63,30 @@ namespace NHSE.WinForms
 
         private static void Open(string path)
         {
-            if ((ModifierKeys & Keys.Control) != 0)
-            {
-                // Detect save file from SD cards?
-            }
+            #if !DEBUG
             try
+            #endif
             {
-                var file = new HorizonSave(path);
-                Open(file);
+                OpenSaveFile(path);
             }
+            #if !DEBUG
 #pragma warning disable CA1031 // Do not catch general exception types
             catch (Exception ex)
 #pragma warning restore CA1031 // Do not catch general exception types
             {
                 WinFormsUtil.Error(ex.Message);
             }
+            #endif
+        }
+
+        private static void OpenSaveFile(string path)
+        {
+            var file = new HorizonSave(path);
+            Open(file);
+
+            var settings = Settings.Default;
+            settings.LastFilePath = path;
+            settings.Save();
         }
     }
 }

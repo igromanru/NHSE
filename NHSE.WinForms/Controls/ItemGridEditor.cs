@@ -11,21 +11,19 @@ namespace NHSE.WinForms
         private static readonly ItemSpriteDrawer Sprites = SpriteUtil.Items;
         private readonly ItemEditor Editor;
         private readonly IReadOnlyList<Item> Items;
-        private readonly string[] ItemNames;
 
         private IList<PictureBox> SlotPictureBoxes = Array.Empty<PictureBox>();
         private int Count => Items.Count;
         private int Page;
         private int ItemsPerPage;
 
-        public ItemGridEditor(ItemEditor editor, IReadOnlyList<Item> items, string[] itemnames)
+        public ItemGridEditor(ItemEditor editor, IReadOnlyList<Item> items)
         {
             Editor = editor;
             Items = items;
-            ItemNames = itemnames;
             InitializeComponent();
 
-            HoverItem(Item.NO_ITEM);
+            L_ItemName.Text = string.Empty;
         }
 
         public void InitializeGrid(int width, int height)
@@ -64,7 +62,11 @@ namespace NHSE.WinForms
             if (!(sender is PictureBox pb))
                 return;
             var index = SlotPictureBoxes.IndexOf(pb);
-            HoverItem(index);
+            var item = GetItem(index);
+
+            var text = GetItemText(item);
+            HoverTip.SetToolTip(pb, text);
+            L_ItemName.Text = text;
             pb.Image = Sprites.HoverBackground;
         }
 
@@ -73,7 +75,11 @@ namespace NHSE.WinForms
             if (!(sender is PictureBox pb))
                 return;
             pb.Image = null;
+            L_ItemName.Text = string.Empty;
+            HoverTip.RemoveAll();
         }
+
+        public static string GetItemText(Item item) => GameInfo.Strings.GetItemName(item.ItemId);
 
         public void Slot_MouseClick(object sender, MouseEventArgs e)
         {
@@ -90,15 +96,8 @@ namespace NHSE.WinForms
             Slot_MouseEnter(sender, e);
         }
 
-        public Item HoverItem(int index) => HoverItem(GetItem(index));
         public Item LoadItem(int index) => Editor.LoadItem(GetItem(index));
         public Item SetItem(int index) => Editor.SetItem(GetItem(index));
-
-        private Item HoverItem(Item item)
-        {
-            L_ItemName.Text = ItemNames[item.ItemId == Item.NONE ? 0 : item.ItemId];
-            return item;
-        }
 
         private Item GetItem(int index)
         {
